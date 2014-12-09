@@ -54,8 +54,6 @@ namespace libmacro {
     };
 
     entry *make_entry(unsigned int);
-    void parse_macro_def(const std::string &def, std::string &name,
-                         std::vector<std::string> &args, std::string &repl);
     std::vector<entry> table_;
   };
 } // end namespace

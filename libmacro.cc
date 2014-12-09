@@ -5,6 +5,50 @@
 
 namespace libmacro {
 
+namespace {
+// Parse a macro define string, with syntax as specified by Sec
+// 6.3.1.1 of the DWARF4 standard.
+// Note: an empty arguments list (|#define foo() bar|) is
+// representedby a vector containing one empty string. Macro with no
+// arguments (|#define foo bar|) is represented with an empty vector.
+void
+parse_macro_def(const std::string &def, std::string &name,
+                std::vector<std::string> &args, std::string &repl) {
+  // First space (if any) separates macro name and args from the
+  // expansion text.
+  size_t p = def.find(' ');
+  if (p == std::string::npos) {
+    // No space, hence a simple macro name definition, without args
+    // and empty replacement.
+    name = def;
+    return;
+  }
+
+  // The replacement list follows the first space.
+  repl = def.substr(p + 1);
+
+  if (def[p - 1] == ')') {
+    // Argument list is present.
+    p = def.find('(');
+
+    // Split argument names.
+    size_t start = p, len;
+    do {
+      ++start;
+      len = 0;
+      while (def[start + len] != ',' && def[start + len] != ')')
+        ++len;
+      args.push_back(def.substr(start, len));
+      start += len;
+    } while (def[start] != ')');
+  }
+
+  // Separate the macro name.
+  assert (def[p] == ' ' || def[p] == '(');
+  name = def.substr(0, p);
+}
+} // end namespace
+
 macro_table::~macro_table() {
   for (std::vector<entry>::iterator i = table_.begin(); i != table_.end(); ++i)
     i->destroy();
@@ -124,48 +168,6 @@ macro_table::find_define(unsigned int lineno, const std::string &name) const {
 
   // Macro definition now found.
   return 0;
-}
-
-// Parse a macro define string, with syntax as specified by Sec
-// 6.3.1.1 of the DWARF4 standard.
-// Note: an empty arguments list (|#define foo() bar|) is
-// representedby a vector containing one empty string. Macro with no
-// arguments (|#define foo bar|) is represented with an empty vector.
-void
-macro_table::parse_macro_def(const std::string &def, std::string &name,
-                             std::vector<std::string> &args, std::string &repl) {
-  // First space (if any) separates macro name and args from the
-  // expansion text.
-  size_t p = def.find(' ');
-  if (p == std::string::npos) {
-    // No space, hence a simple macro name definition, without args
-    // and empty replacement.
-    name = def;
-    return;
-  }
-
-  // The replacement list follows the first space.
-  repl = def.substr(p + 1);
-
-  if (def[p - 1] == ')') {
-    // Argument list is present.
-    p = def.find('(');
-
-    // Split argument names.
-    size_t start = p, len;
-    do {
-      ++start;
-      len = 0;
-      while (def[start + len] != ',' && def[start + len] != ')')
-        ++len;
-      args.push_back(def.substr(start, len));
-      start += len;
-    } while (def[start] != ')');
-  }
-
-  // Separate the macro name.
-  assert (def[p] == ' ' || def[p] == '(');
-  name = def.substr(0, p);
 }
 
 } // end namespace
