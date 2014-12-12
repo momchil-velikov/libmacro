@@ -5,10 +5,14 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
 #if defined (_LIBMACRO_DLL)
 #define _LIBMACRO_EXPORT __declspec (dllexport)
 #else
 #define _LIBMACRO_EXPORT __declspec (dllimport)
+#endif
+#else
+#define _LIBMACRO_EXPORT
 #endif
 
 namespace libmacro {
@@ -24,7 +28,7 @@ namespace libmacro {
 
     struct define {
       std::string name;
-      std::vector<std::string> args;
+      std::vector<std::string> params;
       std::string repl;
     };
 
@@ -56,6 +60,8 @@ namespace libmacro {
     entry *make_entry(unsigned int);
     std::vector<entry> table_;
   };
+
+  std::string macro_expand(const std::string &input, const macro_table *macros,
+                           unsigned int lineno);
 } // end namespace
 #endif // libmacro_hh__
-
