@@ -475,7 +475,10 @@ stringify(const token &t, std::string &out) {
   case token::STRINGIFY:
     out += "#";
     break;
+  case token::PASTE:
     out += "##";
+    break;
+  default:
     break;
   }
 }
@@ -542,7 +545,7 @@ substitute_parameters(std::vector<std::string> &blacklist,
         if (curr != repl.begin())
           --prev;
         if (prev->kind == token::PASTE
-            || next != repl.end() && next->kind == token::PASTE) {
+            || (next != repl.end() && next->kind == token::PASTE)) {
           if (arg.empty()) {
             // If the argument token list consists of no preprocessing
             // tokens and the parameter name is preceded or followed by
@@ -891,6 +894,8 @@ macro_table::find_define(unsigned int lineno, const std::string &name) const {
       if (const define *d =
           table_[idx].include->get_macros()->find_define(0, name))
         return d;
+      break;
+    default:
       break;
     }
   }

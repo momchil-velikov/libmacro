@@ -160,6 +160,7 @@ class stringify_macros : public ::testing::Test {
     macros.add_define(1, "A(x) #x");
     macros.add_define(2, "B(x,y,z) x, y, z");
     macros.add_define(3, "C(x,y,z) A(B(x, y, z))");
+    macros.add_define(1, "D A(# ##)");
   }
 
   libmacro::macro_table macros;
@@ -189,6 +190,8 @@ TEST_F(stringify_macros, stringification) {
   ASSERT_EQ("\"\\\"a \\\\b c\\\"\"", out);
   out = libmacro::macro_expand("A(\"a '\\b' c\")", &macros, 0);
   ASSERT_EQ("\"\\\"a '\\\\b' c\\\"\"", out);
+  out = libmacro::macro_expand("D", &macros, 0);
+  ASSERT_EQ("\"# ##\"", out);
 }
 
 class token_paste_macros : public ::testing::Test {
