@@ -637,7 +637,7 @@ paste_tokens(token_list &repl) {
         size_t ws;
         std::string::const_iterator end = 
           scan_pp_token(prev->text.begin(), prev->text.end(), prev->kind, ws);
-        if (end == prev->text.begin())
+        if (end != prev->text.end())
           throw "Token paste results in invalid preprocessing token";
         // The resulting token is available for a further macro
         // replacement (C11, 6.10.3.3 #3), but is never # or ##
