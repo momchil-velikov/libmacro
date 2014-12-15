@@ -30,6 +30,7 @@ namespace libmacro {
       std::string name;
       std::vector<std::string> params;
       std::string repl;
+      mutable bool checked;
     };
 
     _LIBMACRO_EXPORT void add_define(unsigned int, const std::string &);

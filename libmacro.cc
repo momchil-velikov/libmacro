@@ -401,6 +401,53 @@ tokenize(const std::string &str, bool func_like, bool replacement = true) {
   return tokens;
 }
 
+// Verify compliance of a replacement token list with the C11
+// requirements.
+void
+verify_replacement_tokens(const macro_table::define *def,
+                          const token_list &tokens) {
+  if (tokens.empty())
+    return;
+  // A ## preprocessing token shall not occur at the beginning or at the
+  // end of a replacement (C11 6.10.3.3 #1).
+  if (tokens.front().kind == token::PASTE || tokens.back().kind == token::PASTE)
+    throw "## cannot appear at either end of a macro";
+  for(token_list::const_iterator i = tokens.begin(); i != tokens.end(); ++i) {
+    // The identifier __VA_ARGS__ shall occur only in the
+    // replacement-list of a function-like macro that uses the ellipsis
+    // notation in the parameters (C11 6/10.3.1 #2).
+    if (i->kind == token::ID && i->text == "__VA_ARGS__") {
+      if (def->params.size() == 0 || def->params.back() != "...")
+        throw "__VA_ARGS__ can only appear in a variadic macro";
+    } else if (i->kind == token::STRINGIFY) {
+      // Each # preprocessing token in the replacement list for a
+      // function-like macro shall be followed by a parameter as the
+      // next preprocessing token in the replacement list
+      // (C11 6.10.3.2).
+      token_list::const_iterator next = i;
+      ++next;
+      if (next == tokens.end()
+          || next->kind != token::ID
+          || (next->text != "__VA_ARGS__"
+              && (std::find(def->params.begin(), def->params.end(), next->text)
+                  == def->params.end()))) {
+        throw "# is not followed by a macro parameter";
+      }
+    }
+  }
+}
+
+// Tokenize a macro definition.
+token_list
+tokenize(const macro_table::define *def) {
+  token_list r = tokenize(def->repl, def->params.size() != 0);
+  if (!def->checked) {
+    verify_replacement_tokens(def, r);
+    def->checked = true;
+  }
+  return r;
+}
+
 token_list::iterator
 gather_arguments(std::vector<std::string> &blacklist,
                  token_list &tokens,
@@ -512,8 +559,7 @@ stringify(const token_list &tokens) {
 std::vector<std::string>::const_iterator
 find(const std::vector<std::string> &params, const std::string &name) {
   if (name == "__VA_ARGS__")
-    // FIXME: correctness must be ensured by the verification
-    // at tokenize time.
+    // Correctness is ensured by the verification at tokenize time.
     return params.begin() + (params.size() - 1);
   else
     return std::find(params.begin(), params.end(), name);
@@ -584,10 +630,7 @@ substitute_parameters(std::vector<std::string> &blacklist,
         ++curr;
       }
     } else if (curr->kind == token::STRINGIFY) {
-      // The stringify operator must be followed by a parameter name
-      // token.
-      // TODO: lazily verify constraints on replacement strings,
-      // including the above one. Cache results.
+      // The stringify operator is followed by a parameter name token.
       next = curr;
       ++next;
       assert(next != repl.end() && next->kind == token::ID);
@@ -611,8 +654,7 @@ paste_tokens(token_list &repl) {
   curr = repl.begin();
   while (curr != repl.end()) {
     if (curr->kind == token::PASTE) {
-      // FIXME: verification: token paste operator is not the first or
-      // the last token.
+      // The ## operator is not the first or the last token.
       next = curr;
       ++next;
       while(next->kind == token::PASTE)
@@ -701,7 +743,7 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
     // Found a macro to expand.
     if (def->params.size() == 0) {
       // Object-like macro.
-      repl = tokenize(def->repl, false);
+      repl = tokenize(def);
       if (repl.empty()) {
         next = curr;
         ++next;
@@ -754,7 +796,7 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
           }
         }
         // Perform parameter substitution and stringification.
-        repl = tokenize(def->repl, true);
+        repl = tokenize(def);
         substitute_parameters(blacklist, args, def->params, macros, lineno,
                               repl);
         // Paste tokens.
@@ -822,6 +864,7 @@ macro_table::add_define(unsigned int lineno, const std::string &def) {
   e->kind = entry::DEFINE;
   e->lineno = lineno;
   e->def = new define;
+  e->def->checked = false;
   parse_macro_def(def, e->def->name, e->def->params, e->def->repl);
 }
 
