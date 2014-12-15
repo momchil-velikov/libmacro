@@ -405,6 +405,8 @@ token_list::iterator
 gather_arguments(std::vector<std::string> &blacklist,
                  token_list &tokens,
                  token_list::iterator begin,
+                 bool variadic,
+                 size_t n,
                  std::vector<token_list> &args) {
   assert(begin != tokens.end() && begin->text == "(");
   unsigned int level = 0;
@@ -435,7 +437,7 @@ gather_arguments(std::vector<std::string> &blacklist,
       } 
     } else if (next->text == ",") {
       // Comma at nesting level one is argument separator.
-      if (level == 1) {
+      if (level == 1 && (!variadic || args.size() + 1 < n)) {
         args.resize(args.size() + 1);
         args.back().splice(args.back().begin(), tokens, begin, next);
         begin = next;
@@ -724,27 +726,32 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
       if (next != tokens.end()
           && next->kind == token::OTHER && next->text == "(") {
         // Gather arguments.
+        bool variadic = def->params.size() && def->params.back() == "...";
         std::vector<token_list> args;
-        next = gather_arguments(blacklist, tokens, next, args);
+        next = gather_arguments(blacklist, tokens, next, variadic,
+                                def->params.size(), args);
         // Check the number of actual arguments matches the number of
         // macro parameters.
-        if (args.size() == def->params.size()) {
-          // A function-like macro with empty parameter list must be
-          // given a single empty argument.
-          if (def->params.size() == 1 && def->params[0].empty()
-              && !args[0].empty()) {
-            throw "Too many macro arguments";
-          }
-        } else if (args.size() > def->params.size()) {
-          if (def->params.size() > 0 && def->params.back() != "...") {
-            // If the arguments are more than the parameters, then the
-            // macro must be variadic.
-            throw "Too many macro arguments";
-          }
-          // TODO: Join the trailing arguments for the __VA_ARGS__
+        if (variadic)  {
+          // A variadic macro should have an argument for every named
           // parameter.
+          if (args.size() < def->params.size() - 1)
+            throw "Insufficient number of arguments";
+          // "Pad" the arguments list with an empty one.
+          args.resize(def->params.size());
         } else {
-          throw "Not enough macro arguments";
+          if (args.size() == def->params.size()) {
+            // A function-like macro with empty parameter list must be
+            // given a single empty argument.
+            if (def->params.size() == 1 && def->params[0].empty()
+                && !args[0].empty()) {
+              throw "Too many macro arguments";
+            }
+          } else if (args.size() > def->params.size()) {
+            throw "Too many macro arguments";
+          } else {
+            throw "Insufficient number of arguments";
+          }
         }
         // Perform parameter substitution and stringification.
         repl = tokenize(def->repl, true);

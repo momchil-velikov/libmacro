@@ -227,6 +227,121 @@ TEST_F(token_paste_macros, paste) {
   ASSERT_EQ("c", out);
 }
 
+class variadic_macros : public ::testing::Test {
+protected:
+  variadic_macros() {
+    macros.add_define(1, "A(...) foo(__VA_ARGS__)");
+    macros.add_define(2, "B(x,...) foo(x,__VA_ARGS__)");
+    macros.add_define(3, "C(x,y,...) foo(x,__VA_ARGS__,y)");
+    macros.add_define(4, "D(...) #__VA_ARGS__");
+    macros.add_define(5, "E(x,...) x #__VA_ARGS__");
+    macros.add_define(6, "F(x,y,...) x y #__VA_ARGS__");
+    macros.add_define(7, "G(x,y,...) x #__VA_ARGS__ y");
+    macros.add_define(8, "P(x,...) x ## __VA_ARGS__");
+    macros.add_define(9, "Q(x,...) __VA_ARGS__ ## x");
+  }
+
+  libmacro::macro_table macros;
+};
+
+TEST_F(variadic_macros, subsitution) {
+  std::string out;
+  out = libmacro::macro_expand("A B C", &macros, 0);
+  ASSERT_EQ("A B C", out);
+  out = libmacro::macro_expand("A()", &macros, 0);
+  ASSERT_EQ("foo()", out);
+  out = libmacro::macro_expand("A(a)", &macros, 0);
+  ASSERT_EQ("foo(a)", out);
+  out = libmacro::macro_expand("A(a,b)", &macros, 0);
+  ASSERT_EQ("foo(a,b)", out);
+  out = libmacro::macro_expand("B(a)", &macros, 0);
+  ASSERT_EQ("foo(a,)", out);
+  out = libmacro::macro_expand("B(a,b)", &macros, 0);
+  ASSERT_EQ("foo(a,b)", out);
+  out = libmacro::macro_expand("B(a,b,c)", &macros, 0);
+  ASSERT_EQ("foo(a,b,c)", out);
+  out = libmacro::macro_expand("B(a,b,c,d)", &macros, 0);
+  ASSERT_EQ("foo(a,b,c,d)", out);
+  out = libmacro::macro_expand("C(a,b)", &macros, 0);
+  ASSERT_EQ("foo(a,,b)", out);
+  out = libmacro::macro_expand("C(a,b,c)", &macros, 0);
+  ASSERT_EQ("foo(a,c,b)", out);
+  out = libmacro::macro_expand("C(a,b,c,d)", &macros, 0);
+  ASSERT_EQ("foo(a,c,d,b)", out);
+  out = libmacro::macro_expand("C(a,b,c,d,e)", &macros, 0);
+  ASSERT_EQ("foo(a,c,d,e,b)", out);
+}
+
+TEST_F(variadic_macros, stringify) {
+  std::string out;
+  out = libmacro::macro_expand("D()", &macros, 0);
+  ASSERT_EQ("\"\"", out);
+  out = libmacro::macro_expand("D(,)", &macros, 0);
+  ASSERT_EQ("\",\"", out);
+  out = libmacro::macro_expand("D(,,)", &macros, 0);
+  ASSERT_EQ("\",,\"", out);
+  out = libmacro::macro_expand("D(,  ,)", &macros, 0);
+  ASSERT_EQ("\", ,\"", out);
+  out = libmacro::macro_expand("D(,, ,  ,)", &macros, 0);
+  ASSERT_EQ("\",, , ,\"", out);
+
+  out = libmacro::macro_expand("E(a)", &macros, 0);
+  ASSERT_EQ("a \"\"", out);
+  out = libmacro::macro_expand("E(a,)", &macros, 0);
+  ASSERT_EQ("a \"\"", out);
+  out = libmacro::macro_expand("E(a,,)", &macros, 0);
+  ASSERT_EQ("a \",\"", out);
+  out = libmacro::macro_expand("E(a,  ,)", &macros, 0);
+  ASSERT_EQ("a \",\"", out);
+  out = libmacro::macro_expand("E(a,, ,  ,)", &macros, 0);
+  ASSERT_EQ("a \", , ,\"", out);
+
+  out = libmacro::macro_expand("F(a,b)", &macros, 0);
+  ASSERT_EQ("a b \"\"", out);
+  out = libmacro::macro_expand("F(a,b,,)", &macros, 0);
+  ASSERT_EQ("a b \",\"", out);
+  out = libmacro::macro_expand("F(a,b,  ,)", &macros, 0);
+  ASSERT_EQ("a b \",\"", out);
+  out = libmacro::macro_expand("F(a,b,, ,  ,)", &macros, 0);
+  ASSERT_EQ("a b \", , ,\"", out);
+
+  out = libmacro::macro_expand("G(a,b)", &macros, 0);
+  ASSERT_EQ("a \"\" b", out);
+  out = libmacro::macro_expand("G(a,b,c)", &macros, 0);
+  ASSERT_EQ("a \"c\" b", out);
+  out = libmacro::macro_expand("G(a,b, c,d)", &macros, 0);
+  ASSERT_EQ("a \"c,d\" b", out);
+  out = libmacro::macro_expand("G(a,b, c, d,  e)", &macros, 0);
+  ASSERT_EQ("a \"c, d, e\" b", out);
+}
+
+TEST_F(variadic_macros, paste) {
+  std::string out;
+  out = libmacro::macro_expand("P(a)", &macros, 0);
+  ASSERT_EQ("a", out);
+  out = libmacro::macro_expand("P(a,)", &macros, 0);
+  ASSERT_EQ("a", out);
+  out = libmacro::macro_expand("P(a,b)", &macros, 0);
+  ASSERT_EQ("ab", out);
+  out = libmacro::macro_expand("P(a,b,)", &macros, 0);
+  ASSERT_EQ("ab,", out);
+  out = libmacro::macro_expand("P(a,b,c)", &macros, 0);
+  ASSERT_EQ("ab,c", out);
+  out = libmacro::macro_expand("P(a,b,c,)", &macros, 0);
+  ASSERT_EQ("ab,c,", out);
+
+  out = libmacro::macro_expand("Q(a)", &macros, 0);
+  ASSERT_EQ("a", out);
+  out = libmacro::macro_expand("Q(a,)", &macros, 0);
+  ASSERT_EQ("a", out);
+  out = libmacro::macro_expand("Q(a,b)", &macros, 0);
+  ASSERT_EQ("ba", out);
+  out = libmacro::macro_expand("Q(a,b,c)", &macros, 0);
+  ASSERT_EQ("b,ca", out);
+  out = libmacro::macro_expand("Q(a,b,c,d)", &macros, 0);
+  ASSERT_EQ("b,c,da", out);
+}
+
 class c11_std_example_macros : public ::testing::Test {
  protected:
   c11_std_example_macros() {
@@ -279,7 +394,6 @@ class c11_std_example_macros1 : public ::testing::Test {
   libmacro::macro_table macros;
 };
 
-
 TEST_F(c11_std_example_macros1, reexamine) {
   std::string out;
   out = libmacro::macro_expand("f(y+1) + f(f(z)) % t(t(g)(0) + t)(1);",
@@ -324,6 +438,30 @@ TEST_F(c11_std_example_macros2, placemarkers) {
   std::string out;
   out = libmacro::macro_expand("int j[] = { t(1,2,3), t(,4,5), t(6,,7), t(8,9,), t(10,,), t(,11,), t(,,12), t(,,) };", &macros, 0);
   ASSERT_EQ("int j[] = { 123, 45, 67, 89, 10, 11, 12, };", out);
+}
+
+class c11_std_example_macros3 : public ::testing::Test {
+ protected:
+  c11_std_example_macros3() {
+
+    macros.add_define(1, "debug(...) fprintf(stderr, __VA_ARGS__)");
+    macros.add_define(2, "showlist(...) puts(#__VA_ARGS__)");
+    macros.add_define(3, "report(test,...) ((test)?puts(#test):printf(__VA_ARGS__))");
+  }
+  
+  libmacro::macro_table macros;
+};
+
+TEST_F(c11_std_example_macros3, variadic) {
+  std::string out;
+  out = libmacro::macro_expand("debug(\"Flag\");", &macros, 0);
+  ASSERT_EQ ("fprintf(stderr, \"Flag\");", out);
+  out = libmacro::macro_expand("debug(\"X = %d\\n\", x);", &macros, 0);
+  ASSERT_EQ("fprintf(stderr, \"X = %d\\n\", x);", out);
+  out = libmacro::macro_expand("showlist(The first, second, and third items.);", &macros, 0);
+  ASSERT_EQ("puts(\"The first, second, and third items.\");", out);
+  out = libmacro::macro_expand("report(x>y, \"x is %d but y is %d\", x, y);", &macros, 0);
+  ASSERT_EQ("((x>y)?puts(\"x>y\"):printf(\"x is %d but y is %d\", x, y));", out);
 }
 
 } // end namespace
