@@ -6,13 +6,17 @@
 #include <vector>
 
 #ifdef _WIN32
-#if defined (_LIBMACRO_DLL)
-#define _LIBMACRO_EXPORT __declspec (dllexport)
+# if defined (_LIBMACRO_STATIC)
+#  define _LIBMACRO_EXPORT
+# else
+#  if defined (_LIBMACRO_DLL)
+#   define _LIBMACRO_EXPORT __declspec (dllexport)
+#  else
+#   define _LIBMACRO_EXPORT __declspec (dllimport)
+#  endif
+# endif
 #else
-#define _LIBMACRO_EXPORT __declspec (dllimport)
-#endif
-#else
-#define _LIBMACRO_EXPORT
+# define _LIBMACRO_EXPORT
 #endif
 
 namespace libmacro {

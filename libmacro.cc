@@ -747,18 +747,18 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
       if (repl.empty()) {
         next = curr;
         ++next;
-        if (next != repl.end())
+        if (next != tokens.end())
           next->ws = curr->ws;
         curr = tokens.erase(curr);
       } else {
         blacklist.push_back(def->name);
-        prev = repl.begin();
-        prev->ws = curr->ws;
-        tokens.splice(curr, repl);
-        next = tokens.erase(curr);
+        repl.front().ws = curr->ws;
+        next = curr;
+        ++next;
         if (next != tokens.end())
           ++next->pop;
-        curr = prev;
+        tokens.splice(next, repl);
+        curr = tokens.erase(curr);
       }
     } else {
       // Function-like macro. If the next token is an opening
@@ -811,18 +811,26 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
         }
         // Rescan/repeat expand.
         if (repl.empty()) {
-          if (next != repl.end())
+          if (next != tokens.end())
             next->ws = curr->ws;
           curr = tokens.erase(curr, next);
         } else {
           blacklist.push_back(def->name);
-          prev = repl.begin();
-          prev->ws = curr->ws;
-          tokens.splice(curr, repl);
-          tokens.erase(curr, next);
           if (next != tokens.end())
             ++next->pop;
-          curr = prev;
+          repl.front().ws = curr->ws;
+          if (curr == tokens.begin()) {
+            tokens.splice(curr, repl);
+            tokens.erase(curr, next);
+            curr = tokens.begin();
+          } else {
+            prev = curr;
+            --prev;
+            tokens.splice(curr, repl);
+            tokens.erase(curr, next);
+            curr = prev;
+            ++curr;
+          }
         }
       } else {
         ++curr;
