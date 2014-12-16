@@ -1,5 +1,5 @@
 CXX = c++
-CXXFLAGS = -pthread -g3 -gdwarf-3 --std=c++03 -I$(GTEST_ROOT)/include
+CXXFLAGS = -pthread -g3 -gdwarf-3 --std=c++03 -Wall -Wextra -I$(GTEST_ROOT)/include
 
 LD = c++
 LDFLAGS = -g -pthread

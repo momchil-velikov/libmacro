@@ -369,7 +369,7 @@ tokenize(const std::string &str, bool func_like, bool replacement = true) {
       = scan_pp_token(curr, str.end(), t.kind, ws);
     t.noexpand = false;
     t.pop = 0;
-    t.ws = ws;
+    t.ws = ws != 0;
     if (curr == next)
       throw "Invalid preprocessing token";
     assert(t.kind != token::PLACEMARKER);
