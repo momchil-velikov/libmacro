@@ -24,6 +24,8 @@ namespace libmacro {
 
   class macro_table {
   public:
+    macro_table() : in_use_(false) {}
+
     ~macro_table();
 
     struct define {
@@ -60,6 +62,7 @@ namespace libmacro {
 
     entry *make_entry(unsigned int);
     std::vector<entry> table_;
+    mutable bool in_use_;
   };
 
   std::string macro_expand(const std::string &input, const macro_table *macros,

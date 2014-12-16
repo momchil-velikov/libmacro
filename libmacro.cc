@@ -831,6 +831,24 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
   }
 }
 
+// Helper template for exception safe save/restore of a value.
+template<typename T>
+class safe_save_restore {
+public:
+  safe_save_restore(T &loc, T val) : location_(loc) {
+    saved_value_ = location_;
+    location_ = val;
+  }
+
+  ~safe_save_restore() {
+    location_ = saved_value_;
+  }
+
+protected:
+  T saved_value_;
+  T &location_;
+};
+
 } // end namespace
 
 macro_table::~macro_table() {
@@ -904,9 +922,13 @@ macro_table::entry::destroy() {
 
 const macro_table::define *
 macro_table::find_define(unsigned int lineno, const std::string &name) const {
-  if (table_.size() == 0)
+  if (in_use_ || table_.size() == 0)
     return 0;
+  
+  // Protect from cycles in the incuded files.
+  safe_save_restore<bool> in_use(in_use_, true);
 
+  // Find the source location to start the search from.
   size_t idx;
   if (lineno > 0) {
     // Binary search in the macros table for the first line number,
@@ -922,6 +944,7 @@ macro_table::find_define(unsigned int lineno, const std::string &name) const {
 
     idx = lower;
   } else {
+    // 0 means start from the end of the table.
     idx = table_.size();
   }
 
