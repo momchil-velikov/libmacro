@@ -9,7 +9,9 @@ GTEST_ROOT=${HOME}/src/gtest-1.7.0
 
 all: libmacro-test
 
-OBJS = libmacro-test-obj-like.o libmacro-test-func-like.o libmacro.o
+SRCS = libmacro.cc libmacro-test-obj-like.cc libmacro-test-func-like.cc
+OBJS = $(SRCS:%.cc=%.o)
+DEPS = $(SRCS:%.cc=%.d)
 
 libmacro-test: $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) -o $@ $(LIBS)
@@ -17,7 +19,14 @@ clean::
 	$(RM) libmacro-test
 
 %.o : %.cc
-	$(CXX) -c $(CXXFLAGS) $<
+	$(CXX) -c $(CXXFLAGS) $< -o $@
+
+%.d : %.cc
+	$(CXX) -MM $(CXXFLAGS) $< -o $@
 
 clean::
-	$(RM) $(OBJS) *~
+	$(RM) $(OBJS) $(DEPS) *~
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $(DEPS)
+endif
