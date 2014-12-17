@@ -460,10 +460,10 @@ gather_arguments(std::vector<std::string> &blacklist,
   token_list::iterator next = begin;
   while (next != tokens.end()) {
 
-    while(next->pop) {
-      assert(blacklist.size());
-      blacklist.pop_back();
-      --next->pop;
+    assert(blacklist.size() >= next->pop);
+    if (next->pop) {
+      blacklist.resize(blacklist.size() - next->pop);
+      next->pop = 0;
     }
     if (next->text == "(") {
       // Increment nesting level.
@@ -612,8 +612,8 @@ substitute_parameters(std::vector<std::string> &blacklist,
           // Completely macro-expand the agrument.
           size_t depth = blacklist.size();
           macro_expand(blacklist, macros, lineno, arg);
-          while (blacklist.size() > depth)
-            blacklist.pop_back();
+          assert(blacklist.size() >= depth);
+          blacklist.resize(depth);
           if (arg.empty()) {
             next = curr;
             ++next;
@@ -710,10 +710,10 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
   while (curr != tokens.end()) {
     // Pop names from the blacklist if the current token ends the range
     // where their replacement is forbiden.
-    while (curr->pop) {
-      assert(blacklist.size());
-      blacklist.pop_back();
-      --curr->pop;
+    assert(blacklist.size() >= curr->pop);
+    if (curr->pop) {
+      blacklist.resize(blacklist.size() - curr->pop);
+      curr->pop = 0;
     }
 
     // Not an identifier, no replacement.
