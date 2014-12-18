@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <locale>
-#include <list>
+#include <vector>
 
 namespace libmacro {
 
@@ -355,7 +355,7 @@ scan_pp_token(std::string::const_iterator str,
 }
 
 // Type for a list of tokens.
-typedef std::list<token> token_list;
+typedef std::vector<token> token_list;
 
 // Tokenize a string.
 token_list
@@ -424,8 +424,7 @@ verify_replacement_tokens(const macro_table::define *def,
       // function-like macro shall be followed by a parameter as the
       // next preprocessing token in the replacement list
       // (C11 6.10.3.2).
-      token_list::const_iterator next = i;
-      ++next;
+      token_list::const_iterator next = i + 1;
       if (next == tokens.end()
           || next->kind != token::ID
           || (next->text != "__VA_ARGS__"
@@ -478,17 +477,14 @@ gather_arguments(std::vector<std::string> &blacklist,
       // closing parenthesis.
       --level;
       if (level == 0) {
-        args.resize(args.size() + 1);
-        args.back().splice(args.back().begin(), tokens, begin, next);
-        return ++next;
+        args.emplace_back(begin, next);
+        return next + 1;
       } 
     } else if (next->text == ",") {
       // Comma at nesting level one is argument separator.
       if (level == 1 && (!variadic || args.size() + 1 < n)) {
-        args.resize(args.size() + 1);
-        args.back().splice(args.back().begin(), tokens, begin, next);
-        begin = next;
-        ++begin;
+        args.emplace_back(begin, next);
+        begin = next + 1;
       }
     }
 
@@ -576,6 +572,7 @@ substitute_parameters(std::vector<std::string> &blacklist,
                       const macro_table *macros,
                       unsigned int lineno,
                       token_list &repl) {
+  bool ws;
   std::vector<std::string>::const_iterator p;
   token_list::iterator prev, next;
   token_list::iterator curr = repl.begin();
@@ -583,15 +580,16 @@ substitute_parameters(std::vector<std::string> &blacklist,
     if (curr->kind == token::ID) {
       // Check if the identifier is a macro parameter.
       if ((p = find(params, curr->text)) != params.end()) {
-        // Make a copy of the argument tokens list.
-        token_list arg = args[p - params.begin()];
+        // Get a read-only reference to the argument tokens list.
+        const token_list &arg = args[p - params.begin()];
         // If a parameter is preceded by a # or ## or followed by ##,
         // then macro replacement does not take place before its
         // substitution (C11, 6.10.3.1).
-        prev = next = curr;
-        ++next;
-        if (curr != repl.begin())
-          --prev;
+        next = curr + 1;
+        if (curr == repl.begin())
+          prev = curr;
+        else
+          prev = curr - 1;
         if (prev->kind == token::PASTE
             || (next != repl.end() && next->kind == token::PASTE)) {
           if (arg.empty()) {
@@ -600,30 +598,33 @@ substitute_parameters(std::vector<std::string> &blacklist,
             // a token paste operator, replace the name with a
             // placemarker token (C11, 6.10.3.3 #2).
             curr->kind = token::PLACEMARKER;
-            curr->text.clear();
+            curr->text = std::string();
             ++curr;
           } else {
             // Replace the argument as is.
-            arg.front().ws = curr->ws;
-            repl.splice(curr, arg);
-            curr = repl.erase(curr);
+            ws = curr->ws;
+            prev = repl.insert(curr, arg.begin(), arg.end());
+            prev->ws = ws;
+            curr = repl.erase(prev + arg.size());
           }
         } else {
-          // Completely macro-expand the agrument.
+          // Make a copy of the argument and completely macro-replace it.
+          token_list cpy = arg;
           size_t depth = blacklist.size();
-          macro_expand(blacklist, macros, lineno, arg);
+          macro_expand(blacklist, macros, lineno, cpy);
           assert(blacklist.size() >= depth);
           blacklist.resize(depth);
-          if (arg.empty()) {
-            next = curr;
-            ++next;
+          if (cpy.empty()) {
+            next = curr + 1;
             if (next != repl.end())
               next->ws = curr->ws;
+            curr = repl.erase(curr);
           } else {
-            arg.front().ws = curr->ws;
+            ws = curr->ws;
+            prev = repl.insert(curr, cpy.begin(), cpy.end());
+            prev->ws = ws;
+            curr = repl.erase(prev + cpy.size());
           }
-          repl.splice(curr, arg);
-          curr = repl.erase(curr);
         }
       } else {
         // Not a parameter.
@@ -631,8 +632,7 @@ substitute_parameters(std::vector<std::string> &blacklist,
       }
     } else if (curr->kind == token::STRINGIFY) {
       // The stringify operator is followed by a parameter name token.
-      next = curr;
-      ++next;
+      next = curr + 1;
       assert(next != repl.end() && next->kind == token::ID);
       p = find(params, next->text);
       assert(p != params.end());
@@ -655,8 +655,7 @@ paste_tokens(token_list &repl) {
   while (curr != repl.end()) {
     if (curr->kind == token::PASTE) {
       // The ## operator is not the first or the last token.
-      next = curr;
-      ++next;
+      next = curr + 1;
       while(next->kind == token::PASTE)
         next = repl.erase(next);
       assert(prev != repl.end() && next != repl.end());
@@ -669,8 +668,7 @@ paste_tokens(token_list &repl) {
       }
       else if (prev->kind == token::PLACEMARKER) {
         prev = repl.erase(prev, next);
-        curr = prev;
-        ++curr;
+        curr = prev + 1;
       } else if (next->kind == token::PLACEMARKER) {
         ++next;
         curr = repl.erase(curr, next);
@@ -745,26 +743,24 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
       // Object-like macro.
       repl = tokenize(def);
       if (repl.empty()) {
-        next = curr;
-        ++next;
+        next = curr + 1;
         if (next != tokens.end())
           next->ws = curr->ws;
         curr = tokens.erase(curr);
       } else {
         blacklist.push_back(def->name);
         repl.front().ws = curr->ws;
-        next = curr;
-        ++next;
+        next = curr + 1;
         if (next != tokens.end())
           ++next->pop;
-        tokens.splice(next, repl);
-        curr = tokens.erase(curr);
+        prev = tokens.insert(curr, repl.begin(), repl.end());
+        tokens.erase(prev + repl.size());
+        curr = prev;
       }
     } else {
       // Function-like macro. If the next token is an opening
       // parenthesis, expand the macro, otherwise skip the name.
-      next = curr;
-      ++next;
+      next = curr + 1;
       if (next != tokens.end()
           && next->kind == token::OTHER && next->text == "(") {
         // Gather arguments.
@@ -802,13 +798,9 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
         // Paste tokens.
         paste_tokens(repl);
         // Remove placemarkers.
-        token_list::iterator p = repl.begin();
-        while (p != repl.end()) {
-          if (p->kind == token::PLACEMARKER)
-            p = repl.erase(p);
-          else
-            ++p;
-        }
+        repl.erase(std::remove_if(repl.begin(), repl.end(),
+                                  [](const token &t) { return t.kind == token::PLACEMARKER; }),
+                   repl.end());
         // Rescan/repeat expand.
         if (repl.empty()) {
           if (next != tokens.end())
@@ -819,18 +811,7 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
           if (next != tokens.end())
             ++next->pop;
           repl.front().ws = curr->ws;
-          if (curr == tokens.begin()) {
-            tokens.splice(curr, repl);
-            tokens.erase(curr, next);
-            curr = tokens.begin();
-          } else {
-            prev = curr;
-            --prev;
-            tokens.splice(curr, repl);
-            tokens.erase(curr, next);
-            curr = prev;
-            ++curr;
-          }
+          curr = tokens.insert(tokens.erase(curr, next), repl.begin(), repl.end());
         }
       } else {
         ++curr;
@@ -989,7 +970,7 @@ std::string
 macro_expand(const std::string &in, const macro_table *macros,
              unsigned int lineno) {
   // Tokenize the input string.
-  std::list<token> tokens = tokenize(in, false, false);
+  token_list tokens = tokenize(in, false, false);
 
   // Perform the expansion.
   std::vector<std::string> blacklist;
@@ -997,9 +978,7 @@ macro_expand(const std::string &in, const macro_table *macros,
 
   // Construct and return the output string.
   std::string out;
-  for (std::list<token>::const_iterator i = tokens.begin();
-       i != tokens.end();
-       ++i) {
+  for (token_list::const_iterator i = tokens.begin(); i != tokens.end(); ++i) {
     assert(i->kind == token::ID || i->kind == token::OTHER);
     if (i->ws)
       out += ' ';
