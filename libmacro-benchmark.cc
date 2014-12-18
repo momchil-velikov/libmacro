@@ -16,7 +16,11 @@ BM_macro_replacement(benchmark::State& state) {
   macros.add_define(6, "F(x,y,z) D(F(x,y,z),E(z,x))");
 
   while (state.KeepRunning())
-    libmacro::macro_expand("B(a)", &macros, 0);
+    libmacro::macro_expand("B(a) C(a) D(e,f) E(f,g) F(g,h,i)"
+                           "B(a) C(a) D(e,f) E(f,g) F(g,h,i)"
+                           "B(a) C(a) D(e,f) E(f,g) F(g,h,i)"
+                           "B(a) C(a) D(e,f) E(f,g) F(g,h,i)",
+                           &macros, 0);
 }
 
 }
