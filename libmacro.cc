@@ -21,7 +21,7 @@ parse_macro_def(const std::string &def, std::string &name,
                 std::vector<std::string> &params, std::string &repl) {
   // First space (if any) separates macro name and parameters from the
   // expansion text.
-  size_t p = def.find(' ');
+  auto p = def.find(' ');
   if (p == std::string::npos) {
     // No space, hence a simple macro name definition, without
     // parameters and empty replacement.
@@ -37,13 +37,14 @@ parse_macro_def(const std::string &def, std::string &name,
     p = def.find('(');
 
     // Split parameter names.
-    size_t start = p, len;
+    auto start = p;
     do {
       ++start;
-      len = 0;
+      decltype(p) len = 0;
       while (def[start + len] != ',' && def[start + len] != ')')
         ++len;
-      params.push_back(def.substr(start, len));
+      auto begin = def.cbegin() + start, end = begin + len;
+      params.emplace_back(begin, end);
       start += len;
     } while (def[start] != ')');
   }
@@ -86,8 +87,7 @@ std::string::const_iterator
 scan_escape_seq(std::string::const_iterator str,
                 std::string::const_iterator end) {
 
-  std::string::const_iterator err = str;
-
+  auto err = str;
   assert(str != end && *str == '\\');
   ++str;
   if (str == end)
@@ -124,15 +124,14 @@ scan_escape_seq(std::string::const_iterator str,
 std::string::const_iterator
 scan_character_constant(std::string::const_iterator str,
                         std::string::const_iterator end) {
-  std::string::const_iterator err = str;
-  std::string::const_iterator next;
+  auto err = str;
   assert(str != end && *str == '\'');
   ++str;
   if (str == end)
     return err;
 
   if (*str == '\\') {
-    next = scan_escape_seq(str, end);
+    auto next = scan_escape_seq(str, end);
     if (next == str)
       return err;
     else
@@ -151,14 +150,14 @@ scan_character_constant(std::string::const_iterator str,
 std::string::const_iterator
 scan_string_literal(std::string::const_iterator str,
                     std::string::const_iterator end) {
-  std::string::const_iterator err = str;
+  auto err = str;
 
   assert(str != end && *str == '"');
   ++str;
 
   while(str != end && *str != '"') {
     if (*str == '\\') {
-      std::string::const_iterator next = scan_escape_seq(str, end);
+      auto next = scan_escape_seq(str, end);
       if (next == str)
         return err;
       str = next;
@@ -191,7 +190,7 @@ scan_pp_number(std::string::const_iterator str,
   assert(str != end && std::isdigit(*str, C_locale));
   while (str != end) {
     if (*str == 'e' || *str == 'E' || *str == 'p' || *str == 'P') {
-      std::string::const_iterator next = str;
+      auto next = str;
       ++next;
       if (next != end && (*next == '+' || *next == '-'))
         str = next;
@@ -214,6 +213,9 @@ struct token {
   size_t pop;
   std::string text;
 };
+
+// Type for a list of tokens.
+typedef std::vector<token> token_list;
 
 // Scan a preprocessing token
 // preprocessing-token:
@@ -354,19 +356,15 @@ scan_pp_token(std::string::const_iterator str,
   return str;
 }
 
-// Type for a list of tokens.
-typedef std::vector<token> token_list;
-
 // Tokenize a string.
 token_list
 tokenize(const std::string &str, bool func_like, bool replacement = true) {
   token_list tokens;
-  std::string::const_iterator curr = str.begin();
-  while (curr != str.end()) {
+  auto curr = str.cbegin();
+  while (curr != str.cend()) {
     token t;
     size_t ws;
-    std::string::const_iterator next
-      = scan_pp_token(curr, str.end(), t.kind, ws);
+    auto next = scan_pp_token(curr, str.cend(), t.kind, ws);
     t.noexpand = false;
     t.pop = 0;
     t.ws = ws != 0;
@@ -412,7 +410,7 @@ verify_replacement_tokens(const macro_table::define *def,
   // end of a replacement (C11 6.10.3.3 #1).
   if (tokens.front().kind == token::PASTE || tokens.back().kind == token::PASTE)
     throw "## cannot appear at either end of a macro";
-  for(token_list::const_iterator i = tokens.begin(); i != tokens.end(); ++i) {
+  for (auto i = tokens.cbegin(); i != tokens.cend(); ++i) {
     // The identifier __VA_ARGS__ shall occur only in the
     // replacement-list of a function-like macro that uses the ellipsis
     // notation in the parameters (C11 6/10.3.1 #2).
@@ -424,12 +422,12 @@ verify_replacement_tokens(const macro_table::define *def,
       // function-like macro shall be followed by a parameter as the
       // next preprocessing token in the replacement list
       // (C11 6.10.3.2).
-      token_list::const_iterator next = i + 1;
-      if (next == tokens.end()
+      auto next = i + 1;
+      if (next == tokens.cend()
           || next->kind != token::ID
           || (next->text != "__VA_ARGS__"
-              && (std::find(def->params.begin(), def->params.end(), next->text)
-                  == def->params.end()))) {
+              && (std::find(def->params.cbegin(), def->params.cend(), next->text)
+                  == def->params.cend()))) {
         throw "# is not followed by a macro parameter";
       }
     }
@@ -439,7 +437,7 @@ verify_replacement_tokens(const macro_table::define *def,
 // Tokenize a macro definition.
 token_list
 tokenize(const macro_table::define *def) {
-  token_list r = tokenize(def->repl, def->params.size() != 0);
+  auto r = tokenize(def->repl, def->params.size() != 0);
   if (!def->checked) {
     verify_replacement_tokens(def, r);
     def->checked = true;
@@ -455,10 +453,9 @@ gather_arguments(std::vector<std::string> &blacklist,
                  size_t n,
                  std::vector<token_list> &args) {
   assert(begin != tokens.end() && begin->text == "(");
-  unsigned int level = 0;
-  token_list::iterator next = begin;
+  auto level = 0U;
+  auto next = begin;
   while (next != tokens.end()) {
-
     assert(blacklist.size() >= next->pop);
     if (next->pop) {
       blacklist.resize(blacklist.size() - next->pop);
@@ -479,7 +476,7 @@ gather_arguments(std::vector<std::string> &blacklist,
       if (level == 0) {
         args.emplace_back(begin, next);
         return next + 1;
-      } 
+      }
     } else if (next->text == ",") {
       // Comma at nesting level one is argument separator.
       if (level == 1 && (!variadic || args.size() + 1 < n)) {
@@ -487,10 +484,8 @@ gather_arguments(std::vector<std::string> &blacklist,
         begin = next + 1;
       }
     }
-
     ++next;
   }
-
   // We failed to find the closing parenthesis.
   throw "Missing closing parenthesis";
 }
@@ -498,17 +493,16 @@ gather_arguments(std::vector<std::string> &blacklist,
 // Convert a token to a string, as for stringification.
 void
 stringify(const token &t, std::string &out) {
-  std::string::const_iterator p;
   switch (t.kind) {
   case token::OTHER:
     if (t.text[0] == '"' || t.text[0] == '\'') {
-      for (p = t.text.begin(); p != t.text.end(); ++p) {
-        if (*p == '"')
+      for (auto ch : t.text) {
+        if (ch == '"')
           out += "\\\"";
-        else if (*p == '\\')
+        else if (ch == '\\')
           out += "\\\\";
         else
-          out += *p;
+          out += ch;
       }
     } else {
       out += t.text;
@@ -533,13 +527,13 @@ std::string
 stringify(const token_list &tokens) {
   std::string res;
   res += '"';
-  token_list::const_iterator t = tokens.begin();
+  auto t = tokens.cbegin();
   // Output the first token without any leading whitespace.
-  if (t != tokens.end()) {
+  if (t != tokens.cend()) {
     stringify(*t, res);
     ++t;
   }
-  while (t != tokens.end()) {
+  while (t != tokens.cend()) {
     if (t->ws) {
       // Whitespace between tokens is output as a single space
       // character.
@@ -556,9 +550,9 @@ std::vector<std::string>::const_iterator
 find(const std::vector<std::string> &params, const std::string &name) {
   if (name == "__VA_ARGS__")
     // Correctness is ensured by the verification at tokenize time.
-    return params.begin() + (params.size() - 1);
+    return params.cbegin() + (params.size() - 1);
   else
-    return std::find(params.begin(), params.end(), name);
+    return std::find(params.cbegin(), params.cend(), name);
 }
 
 // Perform parameter substitution (including inserting placemarkers)
@@ -575,13 +569,13 @@ substitute_parameters(std::vector<std::string> &blacklist,
   bool ws;
   std::vector<std::string>::const_iterator p;
   token_list::iterator prev, next;
-  token_list::iterator curr = repl.begin();
+  auto curr = repl.begin();
   while(curr != repl.end()) {
     if (curr->kind == token::ID) {
       // Check if the identifier is a macro parameter.
-      if ((p = find(params, curr->text)) != params.end()) {
+      if ((p = find(params, curr->text)) != params.cend()) {
         // Get a read-only reference to the argument tokens list.
-        const token_list &arg = args[p - params.begin()];
+        const auto &arg = args[p - params.cbegin()];
         // If a parameter is preceded by a # or ## or followed by ##,
         // then macro replacement does not take place before its
         // substitution (C11, 6.10.3.1).
@@ -598,19 +592,19 @@ substitute_parameters(std::vector<std::string> &blacklist,
             // a token paste operator, replace the name with a
             // placemarker token (C11, 6.10.3.3 #2).
             curr->kind = token::PLACEMARKER;
-            curr->text = std::string();
+            curr->text.clear();
             ++curr;
           } else {
             // Replace the argument as is.
             ws = curr->ws;
-            prev = repl.insert(curr, arg.begin(), arg.end());
+            prev = repl.insert(curr, arg.cbegin(), arg.cend());
             prev->ws = ws;
             curr = repl.erase(prev + arg.size());
           }
         } else {
           // Make a copy of the argument and completely macro-replace it.
-          token_list cpy = arg;
-          size_t depth = blacklist.size();
+          auto cpy = arg;
+          auto depth = blacklist.size();
           macro_expand(blacklist, macros, lineno, cpy);
           assert(blacklist.size() >= depth);
           blacklist.resize(depth);
@@ -638,7 +632,7 @@ substitute_parameters(std::vector<std::string> &blacklist,
       assert(next != repl.end() && next->kind == token::ID);
       p = find(params, next->text);
       assert(p != params.end());
-      const token_list &arg = args[p - params.begin()];
+      const auto &arg = args[p - params.cbegin()];
       curr->kind = token::OTHER;
       curr->text = stringify(arg);
       curr = repl.erase(next);
@@ -651,13 +645,12 @@ substitute_parameters(std::vector<std::string> &blacklist,
 // Perform token pasting.
 void
 paste_tokens(token_list &repl) {
-  token_list::iterator prev, curr, next;
-  prev = repl.end();
-  curr = repl.begin();
+  auto prev = repl.end();
+  auto curr = repl.begin();
   while (curr != repl.end()) {
     if (curr->kind == token::PASTE) {
       // The ## operator is not the first or the last token.
-      next = curr + 1;
+      auto next = curr + 1;
       while(next->kind == token::PASTE)
         next = repl.erase(next);
       assert(prev != repl.end() && next != repl.end());
@@ -679,9 +672,8 @@ paste_tokens(token_list &repl) {
         prev->text.append(next->text);
         // Check we have obtained a valid preprocessing token.
         size_t ws;
-        std::string::const_iterator end = 
-          scan_pp_token(prev->text.begin(), prev->text.end(), prev->kind, ws);
-        if (end != prev->text.end())
+        auto end = scan_pp_token(prev->text.cbegin(), prev->text.cend(), prev->kind, ws);
+        if (end != prev->text.cend())
           throw "Token paste results in invalid preprocessing token";
         // The resulting token is available for a further macro
         // replacement (C11, 6.10.3.3 #3), but is never # or ##
@@ -725,15 +717,15 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
     }
 
     // If found an identifier, check the blacklist.
-    if (std::find(blacklist.begin(), blacklist.end(), curr->text)
-        !=  blacklist.end()) {
+    if (std::find(blacklist.cbegin(), blacklist.cend(), curr->text)
+        !=  blacklist.cend()) {
       // Do not replace this token anymore, even if it is re-examined in
       // a context where it is not blacklisted (C11, 16.3.4 #2).
       curr->noexpand = true;
       ++curr;
       continue;
     }
-    
+
     // If not blacklisted, check if there is such a macro definition.
     if ((def = macros->find_define(lineno, curr->text)) == 0) {
       ++curr;
@@ -847,8 +839,8 @@ protected:
 } // end namespace
 
 macro_table::~macro_table() {
-  for (std::vector<entry>::iterator i = table_.begin(); i != table_.end(); ++i)
-    i->destroy();
+  for (auto &e : table_)
+    e.destroy();
 }
 
 macro_table::entry *
@@ -862,7 +854,7 @@ macro_table::make_entry(unsigned int lineno) {
 
   // Slow path
   table_.resize(table_.size() + 1);
-  size_t i = table_.size() - 1;
+  auto i = table_.size() - 1;
   while (i > 0 && table_[i - 1].lineno > lineno) {
     std::swap(table_[i], table_[i - 1]);
     --i;
@@ -919,7 +911,7 @@ const macro_table::define *
 macro_table::find_define(unsigned int lineno, const std::string &name) const {
   if (in_use_ || table_.size() == 0)
     return 0;
-  
+
   // Protect from cycles in the incuded files.
   safe_save_restore<bool> in_use(in_use_, true);
 
@@ -976,7 +968,7 @@ std::string
 macro_expand(const std::string &in, const macro_table *macros,
              unsigned int lineno) {
   // Tokenize the input string.
-  token_list tokens = tokenize(in, false, false);
+  auto tokens = tokenize(in, false, false);
 
   // Perform the expansion.
   std::vector<std::string> blacklist;
@@ -984,11 +976,11 @@ macro_expand(const std::string &in, const macro_table *macros,
 
   // Construct and return the output string.
   std::string out;
-  for (token_list::const_iterator i = tokens.begin(); i != tokens.end(); ++i) {
-    assert(i->kind == token::ID || i->kind == token::OTHER);
-    if (i->ws)
+  for (const auto &t : tokens) {
+    assert(t.kind == token::ID || t.kind == token::OTHER);
+    if (t.ws)
       out += ' ';
-    out += i->text;
+    out += t.text;
   }
   return out;
 }
