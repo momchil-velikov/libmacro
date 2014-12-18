@@ -621,7 +621,9 @@ substitute_parameters(std::vector<std::string> &blacklist,
             curr = repl.erase(curr);
           } else {
             ws = curr->ws;
-            prev = repl.insert(curr, cpy.begin(), cpy.end());
+            prev = repl.insert(curr,
+                               std::make_move_iterator(cpy.begin()),
+                               std::make_move_iterator(cpy.end()));
             prev->ws = ws;
             curr = repl.erase(prev + cpy.size());
           }
@@ -753,7 +755,9 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
         next = curr + 1;
         if (next != tokens.end())
           ++next->pop;
-        prev = tokens.insert(curr, repl.begin(), repl.end());
+        prev = tokens.insert(curr,
+                             std::make_move_iterator(repl.begin()),
+                             std::make_move_iterator(repl.end()));
         tokens.erase(prev + repl.size());
         curr = prev;
       }
@@ -811,7 +815,9 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
           if (next != tokens.end())
             ++next->pop;
           repl.front().ws = curr->ws;
-          curr = tokens.insert(tokens.erase(curr, next), repl.begin(), repl.end());
+          curr = tokens.insert(tokens.erase(curr, next),
+                               std::make_move_iterator(repl.begin()),
+                               std::make_move_iterator(repl.end()));
         }
       } else {
         ++curr;
