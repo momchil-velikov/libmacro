@@ -207,7 +207,17 @@ scan_pp_number(std::string::const_iterator str,
 }
 
 struct token {
-  enum kind { ID, STRINGIFY, PASTE, PLACEMARKER, END, OTHER } kind;
+  enum kind { ID, STRINGIFY, PASTE, PLACEMARKER, END, OTHER };
+
+  token (enum kind k, bool ws)
+    : kind(k), ws(ws), noexpand(false), pop(0) {
+  }
+
+  token (enum kind k, bool ws, std::string::const_iterator begin, std::string::const_iterator end)
+    : kind(k), ws(ws), noexpand(false), pop(), text(begin, end) {
+  }
+
+  enum kind kind;
   bool ws;
   bool noexpand;
   size_t pop;
@@ -362,34 +372,28 @@ tokenize(const std::string &str, bool func_like, bool replacement = true) {
   token_list tokens;
   auto curr = str.cbegin();
   while (curr != str.cend()) {
-    token t;
+    enum token::kind kind;
     size_t ws;
-    auto next = scan_pp_token(curr, str.cend(), t.kind, ws);
-    t.noexpand = false;
-    t.pop = 0;
-    t.ws = ws != 0;
+    auto next = scan_pp_token(curr, str.cend(), kind, ws);
     if (curr == next)
       throw "Invalid preprocessing token";
-    assert(t.kind != token::PLACEMARKER);
-    switch (t.kind) {
+    assert(kind != token::PLACEMARKER);
+    switch (kind) {
     case token::ID:
     case token::OTHER:
-      t.text = std::string(curr + ws, next);
-      tokens.push_back(t);
+      tokens.emplace_back(kind, ws != 0, curr + ws, next);
       break;
     case token::STRINGIFY:
-      if (!replacement || !func_like) {
-        t.kind = token::OTHER;
-        t.text = std::string(curr + ws, next);
-      }
-      tokens.push_back(t);
+      if (!replacement || !func_like)
+        tokens.emplace_back(token::OTHER, ws != 0, curr + ws, next);
+      else
+        tokens.emplace_back(kind, ws != 0);
       break;
     case token::PASTE:
-      if (!replacement) {
-        t.kind = token::OTHER;
-        t.text = std::string(curr + ws, next);
-      }
-      tokens.push_back(t);
+      if (!replacement)
+        tokens.emplace_back(token::OTHER, ws != 0, curr + ws, next);
+      else
+        tokens.emplace_back(kind, ws != 0);
       break;
     default:
       break;
