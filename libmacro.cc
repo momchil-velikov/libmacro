@@ -731,7 +731,7 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
     }
 
     // If not blacklisted, check if there is such a macro definition.
-    if ((def = macros->find_define(lineno, curr->text)) == 0) {
+    if ((def = macros->find_define(lineno, curr->text)) == nullptr) {
       ++curr;
       continue;
     }
@@ -894,7 +894,7 @@ macro_table::add_include(unsigned int lineno, const included_macros *nested) {
   e->include = nested;
 }
 
-macro_table::entry::entry() : kind(INVALID), lineno(0), def(0) {}
+macro_table::entry::entry() : kind(INVALID), lineno(0), def(nullptr) {}
 
 void
 macro_table::entry::destroy() {
@@ -914,7 +914,7 @@ macro_table::entry::destroy() {
 const macro_table::define *
 macro_table::find_define(unsigned int lineno, const std::string &name) const {
   if (in_use_ || table_.size() == 0)
-    return 0;
+    return nullptr;
 
   // Protect from cycles in the incuded files.
   safe_save_restore<bool> in_use(in_use_, true);
@@ -951,7 +951,7 @@ macro_table::find_define(unsigned int lineno, const std::string &name) const {
     case entry::UNDEFINE:
       // Found an undefine directive; terminate search.
       if (table_[idx].def->name == name)
-        return 0;
+        return nullptr;
       break;
     case entry::INCLUDE:
       // Search among the directives in the included file
@@ -965,7 +965,7 @@ macro_table::find_define(unsigned int lineno, const std::string &name) const {
   }
 
   // Macro definition not found.
-  return 0;
+  return nullptr;
 }
 
 std::string
