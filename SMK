@@ -3,7 +3,7 @@ from os import path
 
 smk.env.debug = True
 smk.env.std = 'c++11'
-smk.env.flags = ['-pthread']
+smk.env.flags = ['-pthread', '-pedantic', '-Wall', '-Wextra']
 smk.env.optimize = 'fast'
 
 libmacro_cc = smk.env.toolchain.get_compiler(smk.lang.CXX)

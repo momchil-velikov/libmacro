@@ -43,8 +43,7 @@ namespace libmacro {
     _LIBMACRO_EXPORT void add_undefine(unsigned int, const std::string &);
     _LIBMACRO_EXPORT void add_include(unsigned int, const included_macros *);
 
-    _LIBMACRO_EXPORT const define *find_define(unsigned int,
-                                               const std::string &) const;
+    _LIBMACRO_EXPORT const define *find_define(unsigned int, const std::string &) const;
   protected:
     struct undefine {
       std::string name;
