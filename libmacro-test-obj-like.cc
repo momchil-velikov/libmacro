@@ -160,7 +160,7 @@ TEST_F(simple_chain_macros, simple_macro_expand) {
   std::string out;
   out = libmacro::macro_expand("A", &macros, 0);
   ASSERT_EQ("a", out);
-  out = libmacro::macro_expand("A", &macros, 1);
+  out = libmacro::macro_expand("A  ", &macros, 1);
   ASSERT_EQ("A", out);
   out = libmacro::macro_expand("A", &macros, 2);
   ASSERT_EQ("a", out);

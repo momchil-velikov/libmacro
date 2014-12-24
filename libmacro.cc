@@ -1,15 +1,14 @@
 // -*- mode: c++; indent-tabs-mode: nil;
 #include "libmacro.hh"
+#include "tokenize.hh"
 #include <algorithm>
 #include <cassert>
-#include <locale>
-#include <vector>
 
 namespace libmacro {
 
-namespace {
+std::locale detail::C_locale("C");
 
-std::locale C_locale("C");
+namespace {
 
 // Parse a macro define string, with syntax as specified by Sec 6.3.1.1 of the DWARF4
 // standard.
@@ -53,350 +52,9 @@ parse_macro_def(const std::string &def, std::string &name,
   name = def.substr(0, p);
 }
 
-inline bool
-isoctal(char ch) {
-  return ch >= '0' && ch <= '7';
-}
-
-// Scan a sequence of between one and three octal digits.
-std::string::const_iterator
-scan_oct_seq(std::string::const_iterator str, std::string::const_iterator end) {
-  assert(str != end && isoctal(*str));
-  ++str;
-  if (str != end && isoctal(*str)) {
-    ++str;
-    if (str != end && isoctal(*str))
-      ++str;
-  }
-  return str;
-}
-
-// Scan a sequence of one or two hexadecimal digits.
-std::string::const_iterator
-scan_hex_seq(std::string::const_iterator str, std::string::const_iterator end) {
-  assert(str != end && std::isxdigit(*str, C_locale));
-  ++str;
-  if (str != end && std::isxdigit(*str, C_locale))
-    ++str;
-  return str;
-}
-
-// Scan a character escape sequence
-std::string::const_iterator
-scan_escape_seq(std::string::const_iterator str, std::string::const_iterator end) {
-
-  auto err = str;
-  assert(str != end && *str == '\\');
-  ++str;
-  if (str == end)
-    return err;
-
-  switch (*str) {
-  case '\'':
-  case '"':
-  case '\\':
-  case '\?':
-  case 'a':
-  case 'b':
-  case 'f':
-  case 'n':
-  case 'r':
-  case 't':
-  case 'v':
-    return ++str;
-  case 'x':
-    ++str;
-    if (str == end)
-      return err;
-    else
-      return scan_hex_seq(str, end);
-  }
-
-  if (isoctal(*str))
-    return scan_oct_seq(str, end);
-
-  return err;
-}
-
-// Scan a character constant.
-std::string::const_iterator
-scan_character_constant(std::string::const_iterator str, std::string::const_iterator end) {
-  auto err = str;
-  assert(str != end && *str == '\'');
-  ++str;
-  if (str == end)
-    return err;
-
-  if (*str == '\\') {
-    auto next = scan_escape_seq(str, end);
-    if (next == str)
-      return err;
-    else
-      str = next;
-  } else {
-    ++str;
-  }
-
-  if (str == end || *str != '\'')
-    return err;
-  else
-    return ++str;
-}
-
-// Scan a string literal.
-std::string::const_iterator
-scan_string_literal(std::string::const_iterator str, std::string::const_iterator end) {
-  auto err = str;
-
-  assert(str != end && *str == '"');
-  ++str;
-
-  while(str != end && *str != '"') {
-    if (*str == '\\') {
-      auto next = scan_escape_seq(str, end);
-      if (next == str)
-        return err;
-      str = next;
-    } else {
-      ++str;
-    }
-  }
-
-  assert(str == end || *str == '"');
-  if (str == end)
-    return err;
-  else
-    return ++str;
-}
-
-// Scan a preprocessing number
-// pp-number:
-//     digit
-//     . digit
-//     pp-number digit
-//     pp-number identifier-nondigit
-//     pp-number e sign
-//     pp-number E sign
-//     pp-number p sign
-//     pp-number P sign
-//     pp-number .
-std::string::const_iterator
-scan_pp_number(std::string::const_iterator str, std::string::const_iterator end) {
-  assert(str != end && std::isdigit(*str, C_locale));
-  while (str != end) {
-    if (*str == 'e' || *str == 'E' || *str == 'p' || *str == 'P') {
-      auto next = str;
-      ++next;
-      if (next != end && (*next == '+' || *next == '-'))
-        str = next;
-      ++str;
-    } else if (std::isdigit(*str, C_locale)
-               || std::isalpha(*str, C_locale)
-               || *str == '.') {
-      ++str;
-    } else {
-      break;
-    }
-  }
-  return str;
-}
-
-struct token {
-  enum kind { ID, STRINGIFY, PASTE, PLACEMARKER, END, OTHER };
-
-  token (enum kind k, bool ws)
-    : kind(k), ws(ws), noexpand(false), pop(0) {
-  }
-
-  token (enum kind k, bool ws, std::string::const_iterator begin,
-         std::string::const_iterator end)
-    : kind(k), ws(ws), noexpand(false), pop(), text(begin, end) {
-  }
-
-  enum kind kind;
-  bool ws;
-  bool noexpand;
-  size_t pop;
-  std::string text;
-};
-
-// Type for a list of tokens.
-typedef std::vector<token> token_list;
-
-// Scan a preprocessing token
-// preprocessing-token:
-//     header-name
-//     identifier
-//     pp-number
-//     character-constant
-//     string-literal
-//     punctuator
-//     each non-white-space character that cannot be one of the above
-std::string::const_iterator
-scan_pp_token(std::string::const_iterator str, std::string::const_iterator end,
-              enum token::kind &kind, size_t &ws) {
-  // Advance past the leading whitespace.
-  ws = 0;
-  while (str != end && std::isspace(*str, C_locale)) {
-    ++ws;
-    ++str;
-  }
-
-  if (str == end) {
-    kind = token::END;
-    return end;
-  }
-
-  kind = token::OTHER;
-  if (std::isdigit(*str, C_locale)) {
-    // Scan pp-number
-    return scan_pp_number(str, end);
-  } else if (*str == '\'') {
-    // Scan character constant.
-    return scan_character_constant(str, end);
-  } else if (*str == '"') {
-    // Scan string literal.
-    return scan_string_literal(str, end);
-  } else if (*str == '_' || std::isalpha(*str, C_locale)) {
-    // Scan identifier.
-    kind = token::ID;
-    ++str;
-    while (str != end && (*str == '_' || std::isalnum(*str, C_locale)))
-      ++str;
-    return str;
-  }
-
-  // Punctuator or other non-whitespace character.
-  switch (*str) {
-  default:
-  case '[': case ']': case '(': case ')': case '{': case '}':
-  case '?': case ',': case ';':
-    assert(!std::isspace (*str, C_locale));
-    ++str;
-    break;
-  case '-':
-    ++str;
-    if (str != end && (*str == '-' || *str == '=' || *str == '>'))
-      ++str;
-    break;
-  case '+':
-    ++str;
-    if (str != end && (*str == '+' || *str == '='))
-      ++str;
-    break;
-  case '&':
-    ++str;
-    if (str != end && (*str == '&' || *str == '='))
-      ++str;
-    break;
-  case '*': case '~': case '!': case '/': case '=': case '^':
-    ++str;
-    if (str != end && *str == '=')
-      ++str;
-    break;
-  case '%':
-    ++str;
-    if (str != end) {
-      if (*str == '=' || *str == '>')
-        ++str;
-      else if (*str == ':') {
-        ++str;
-        if (end - str > 1 && *str == '%' && *(str + 1) == ':')
-          str += 2;
-      }
-    }
-    break;
-  case '<':
-    ++str;
-    if (str != end) {
-      if (*str == ':' || *str == '%' || *str == '=')
-        ++str;
-      else if (*str == '<') {
-        ++str;
-        if (str != end && *str == '=')
-          ++str;
-      }
-    }
-    break;
-  case '>':
-    ++str;
-    if (str != end) {
-      if (*str == '=')
-        ++str;
-      else if (*str == '>') {
-        ++str;
-        if (str != end && *str == '=')
-          ++str;
-      }
-    }
-    break;
-  case '|':
-    ++str;
-    if (str != end && (*str == '|' || *str == '='))
-      ++str;
-    break;
-  case ':':
-    ++str;
-    if (str != end && *str == '>')
-      ++str;
-    break;
-  case '.':
-    ++str;
-    if (str != end) {
-      if (std::isdigit(*str, C_locale))
-        str = scan_pp_number(str, end);
-      else if (end - str > 1 && *str == '.' && *(str + 1) == '.')
-        str += 2;
-    }
-    break;
-  case '#':
-    kind = token::STRINGIFY;
-    ++str;
-    if (str != end && *str == '#') {
-      kind = token::PASTE;
-      ++str;
-    }
-    break;
-  }
-  return str;
-}
-
-// Tokenize a string.
-token_list
-tokenize(const std::string &str, bool func_like, bool replacement = true) {
-  token_list tokens;
-  auto curr = str.cbegin();
-  while (curr != str.cend()) {
-    enum token::kind kind;
-    size_t ws;
-    auto next = scan_pp_token(curr, str.cend(), kind, ws);
-    if (curr == next)
-      throw "Invalid preprocessing token";
-    assert(kind != token::PLACEMARKER);
-    switch (kind) {
-    case token::ID:
-    case token::OTHER:
-      tokens.emplace_back(kind, ws != 0, curr + ws, next);
-      break;
-    case token::STRINGIFY:
-      if (!replacement || !func_like)
-        tokens.emplace_back(token::OTHER, ws != 0, curr + ws, next);
-      else
-        tokens.emplace_back(kind, ws != 0);
-      break;
-    case token::PASTE:
-      if (!replacement)
-        tokens.emplace_back(token::OTHER, ws != 0, curr + ws, next);
-      else
-        tokens.emplace_back(kind, ws != 0);
-      break;
-    default:
-      break;
-    }
-    curr = next;
-  }
-  return tokens;
-}
+using libmacro::detail::token;
+using libmacro::detail::token_list;
+using libmacro::detail::tokenize;
 
 // Verify compliance of a replacement token list with the C11
 // requirements.
@@ -434,7 +92,7 @@ verify_replacement_tokens(const macro_table::define *def, const token_list &toke
 // Tokenize a macro definition.
 token_list
 tokenize(const macro_table::define *def) {
-  auto r = tokenize(def->repl, def->params.size() != 0);
+  auto r = tokenize(def->repl.cbegin(), def->repl.cend(), def->params.size() != 0);
   if (!def->checked) {
     verify_replacement_tokens(def, r);
     def->checked = true;
@@ -946,7 +604,7 @@ macro_table::find_define(unsigned int lineno, const std::string &name) const {
 std::string
 macro_expand(const std::string &in, const macro_table *macros, unsigned int lineno) {
   // Tokenize the input string.
-  auto tokens = tokenize(in, false, false);
+  auto tokens = tokenize(in.cbegin(), in.cend(), false, false);
 
   // Perform the expansion.
   std::vector<std::string> blacklist;
