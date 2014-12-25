@@ -175,6 +175,27 @@ struct token {
   token(enum kind k, bool ws, It begin, It end)
       : kind(k), ws(ws), noexpand(false), pop(), text(begin, end) {}
 
+  token(const token &other) : kind(other.kind), ws(other.ws), noexpand(other.noexpand),
+                              pop (other.pop), text(other.text) {}
+
+  token(token &&other) : kind(other.kind), ws(other.ws), noexpand(other.noexpand),
+                         pop (other.pop), text(std::move(other.text)) {}
+
+  token &operator=(const token &other) {
+    token tmp(other);
+    std::swap(*this, tmp);
+    return *this;
+  }
+
+  token &operator=(token &&other) {
+    kind = other.kind;
+    ws = other.ws;
+    noexpand = other.noexpand;
+    pop = other.pop;
+    text = std::move(other.text);
+    return *this;
+  }
+
   enum kind kind;
   bool ws;
   bool noexpand;
