@@ -349,44 +349,43 @@ template<typename It>
 class tokenizer {
  public:
   tokenizer(It begin, It end, bool func_like, bool repl = true)
-      : next_(begin), end_(end), func_like_(func_like), replacement_(repl) {}
+      : token_(token::END, false), next_(begin), end_(end), func_like_(func_like),
+        replacement_(repl) {}
 
   class iterator {
    public:
-    explicit iterator() : owner_(nullptr), token_(token::END, false) {}
-    explicit iterator(tokenizer<It> *owner) : owner_(owner), token_(token::END, false) {
-      token_ = owner_->fetch();
-      if (token_.kind == token::END)
+    explicit iterator() : owner_(nullptr) {}
+    explicit iterator(tokenizer<It> *owner) : owner_(owner) {
+      const auto &t = owner_->fetch();
+      if (t.kind == token::END)
         owner_ = nullptr;
     }
 
     bool operator==(const iterator &other) const {
-      if (owner_ == nullptr && other.owner_ == nullptr
-          && token_.kind == token::END && other.token_.kind == token::END)
+      if (owner_ == nullptr && other.owner_ == nullptr)
         return true;
       return this == &other;
     }
 
     bool operator!=(const iterator &other) const { return !(*this == other); }
 
-    token &operator*() { return token_; }
+    token &operator*() { return owner_->token_; }
 
-    const token &operator*() const { return token_; }
+    const token &operator*() const { return owner_->token_; }
 
-    token *operator->() { return &token_; }
+    token *operator->() { return &owner_->token_; }
 
-    const token *operator->() const { return &token_;  }
+    const token *operator->() const { return &owner_->token_;  }
 
     iterator &operator++() {
-      token_ = owner_->fetch();
-      if (token_.kind == token::END)
+      const auto &t = owner_->fetch();
+      if (t.kind == token::END)
         owner_ = nullptr;
       return *this;
     }
 
    private:
     tokenizer<It> *owner_;
-    token token_;
   };
 
   iterator begin() {
@@ -398,9 +397,10 @@ class tokenizer {
   }
 
  private:
-  token fetch();
+  const token &fetch();
   friend class iterator;
 
+  token token_;
   It next_;
   It end_;
   bool func_like_;
@@ -408,12 +408,12 @@ class tokenizer {
 };
 
 template<typename It>
-token
+const token &
 tokenizer<It>::fetch() {
   enum token::kind kind;
   size_t ws;
   if (next_ == end_)
-    return {token::END, false};
+    return token_ = {token::END, false};
   auto next = scan_pp_token(next_, end_, kind, ws);
   if (next == next_)
     throw "Invalid preprocessing token";
@@ -423,20 +423,20 @@ tokenizer<It>::fetch() {
   switch (kind) {
     case token::ID:
     case token::OTHER:
-      return {kind, ws != 0, start + ws, next};
+      return token_ = {kind, ws != 0, start + ws, next};
     case token::STRINGIFY:
       if (!replacement_ || !func_like_)
-        return {token::OTHER, ws != 0, start + ws, next};
+        return token_ = {token::OTHER, ws != 0, start + ws, next};
       else
-        return {kind, ws != 0};
+        return token_ = {kind, ws != 0};
     case token::PASTE:
       if (!replacement_)
-        return {token::OTHER, ws != 0, start + ws, next};
+        return token_ = {token::OTHER, ws != 0, start + ws, next};
       else
-        return {kind, ws != 0};
+        return token_ = {kind, ws != 0};
     default:
     case token::END:
-      return {token::END, false};
+      return token_ = {token::END, false};
   }
 }
 
