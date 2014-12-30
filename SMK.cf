@@ -1,9 +1,0 @@
-# -*- mode: python -*-
-from os import environ, path
-gtest_dir = path.join(os.environ['HOME'], 'src', 'gtest-1.7.0')
-gtest_incdir = path.join(gtest_dir, 'include')
-gtest_libdir = path.join(gtest_dir, 'lib' + path.sep)
-
-benchmark_dir = path.join(os.environ['HOME'], 'src', 'benchmark')
-benchmark_incdir = path.join(benchmark_dir, 'include')
-benchmark_libdir = path.join(benchmark_dir, 'src' + path.sep)

@@ -1,36 +1,37 @@
 # -*- mode: python -*-
-from os import path
+from os import environ, path
+gtest_dir = path.join(os.environ['HOME'], 'src', 'gtest-1.7.0')
+gtest_incdir = path.join(gtest_dir, 'include')
+gtest_libdir = path.join(gtest_dir, 'lib' + path.sep)
 
-smk.env.debug = True
+benchmark_dir = path.join(os.environ['HOME'], 'src', 'benchmark')
+benchmark_incdir = path.join(benchmark_dir, 'include')
+benchmark_libdir = path.join(benchmark_dir, 'src' + path.sep)
+
 smk.env.std = 'c++11'
 smk.env.flags = ['-pthread', '-pedantic', '-Wall', '-Wextra']
-smk.env.optimize = 'fast'
 
-libmacro_cc = smk.env.toolchain.get_compiler(smk.lang.CXX)
-libmacro_objs = smk.compile_sources(['libmacro.cc'], build = libmacro_cc)
-libmacro = smk.make_static_lib('macro', objs = libmacro_objs)
+# libmacro library
+cc = smk.env.toolchain.get_compiler(smk.lang.CXX)
+objs = smk.compile_sources(['libmacro.cc'], build = cc)
+libmacro = smk.make_static_lib('macro', objs = objs)
 libmacro.default = True
 
-libmacro_test_vars = smk.environ(smk.env)
-libmacro_test_vars.include = [gtest_incdir]
-libmacro_test_cc = smk.env.toolchain.get_compiler(smk.lang.CXX,
-                                                  env = libmacro_test_vars)
-libmacro_test_objs = smk.compile_sources(['libmacro-test-func-like.cc',
-                                          'libmacro-test-obj-like.cc'],
-                                         build = libmacro_test_cc)
-libmacro_test = smk.make_program('libmacro-test', objs = libmacro_test_objs,
-                                 libs=[libmacro,
-                                       gtest_libdir, 'gtest', 'gtest_main'])
+# Test suite
+cfg = smk.environ(smk.env)
+cfg.include = [gtest_incdir]
+cc = smk.env.toolchain.get_compiler(smk.lang.CXX, env = cfg)
+objs = smk.compile_sources(['libmacro-test-func-like.cc', 'libmacro-test-obj-like.cc'],
+                           build = cc)
+libmacro_test = smk.make_program('libmacro-test', objs = objs,
+                                 libs=[libmacro, gtest_libdir, 'gtest', 'gtest_main'])
 libmacro_test.default = True
 
-libmacro_bench_vars = smk.environ(smk.env)
-libmacro_bench_vars.include = [benchmark_incdir]
-libmacro_bench_cc = smk.env.toolchain.get_compiler(smk.lang.CXX,
-                                                   env = libmacro_bench_vars)
-libmacro_bench_objs = smk.compile_source('libmacro-benchmark.cc',
-                                         build = libmacro_bench_cc)
-libmacro_bench = smk.make_program('libmacro-bench',
-                                  objs = [libmacro_bench_objs],
+cfg = smk.environ(smk.env)
+cfg.include = [benchmark_incdir]
+cc = smk.env.toolchain.get_compiler(smk.lang.CXX, env = cfg)
+objs = smk.compile_source('libmacro-benchmark.cc', build = cc)
+libmacro_bench = smk.make_program('libmacro-bench', objs = [objs],
                                   libs = [libmacro,
                                           gtest_libdir, 'gtest', 'gtest_main',
                                           benchmark_libdir, 'benchmark']);
