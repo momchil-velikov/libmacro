@@ -27,7 +27,7 @@ BM_macro_replacement(benchmark::State& state) {
 
 BENCHMARK(BM_macro_replacement);
 
-int main(int argc, const char** argv) {
+int main(int argc, char** argv) {
   benchmark::Initialize(&argc, argv);
   benchmark::RunSpecifiedBenchmarks();
 
