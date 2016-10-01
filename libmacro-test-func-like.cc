@@ -478,4 +478,25 @@ TEST_F(c11_std_example_macros3, variadic) {
   ASSERT_EQ("((x>y)?puts(\"x>y\"):printf(\"x is %d but y is %d\", x, y));", out);
 }
 
+class variadic_headache : public ::testing::Test {
+protected:
+  variadic_headache() {
+    macros.add_define(1, "ADD_END(...) ADD_END_(__VA_ARGS__)");
+    macros.add_define(2, "ADD_END_(...) __VA_ARGS__##_END");
+    macros.add_define(3, "TEST(args) ADD_END(TEST1 args)");
+    macros.add_define(3, "TEST1(arg) #arg TEST2");
+    macros.add_define(5, "TEST2(arg) #arg TEST1");
+    macros.add_define(6, "TEST1_END");
+    macros.add_define(7, "TEST2_END");
+  }
+
+  libmacro::macro_table macros;
+};
+
+TEST_F(variadic_headache, variadic) {
+  std::string out;
+  out = libmacro::macro_expand("TEST( (x) (y) (z))", &macros, 0);
+  ASSERT_EQ("\"x\" \"y\" \"z\"", out);
+}
+
 }  // end namespace
