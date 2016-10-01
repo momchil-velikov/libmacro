@@ -46,7 +46,6 @@ scan_hex_seq(InputIterator str, InputIterator end) {
 template<typename InputIterator>
 InputIterator
 scan_escape_seq(InputIterator str, InputIterator end) {
-
   auto err = str;
   assert(str != end && *str == '\\');
   ++str;
@@ -115,7 +114,7 @@ scan_string_literal(InputIterator str, InputIterator end) {
   assert(str != end && *str == '"');
   ++str;
 
-  while(str != end && *str != '"') {
+  while (str != end && *str != '"') {
     if (*str == '\\') {
       auto next = scan_escape_seq(str, end);
       if (next == str)
@@ -155,8 +154,7 @@ scan_pp_number(InputIterator str, InputIterator end) {
       if (next != end && (*next == '+' || *next == '-'))
         str = next;
       ++str;
-    } else if (std::isdigit(*str, C_locale)
-               || std::isalpha(*str, C_locale)
+    } else if (std::isdigit(*str, C_locale) || std::isalpha(*str, C_locale)
                || *str == '.') {
       ++str;
     } else {
@@ -175,19 +173,29 @@ struct token {
   token(enum kind k, bool ws, It begin, It end)
       : kind(k), ws(ws), noexpand(false), pop(), text(begin, end) {}
 
-  token(const token &other) : kind(other.kind), ws(other.ws), noexpand(other.noexpand),
-                              pop (other.pop), text(other.text) {}
+  token(const token &other)
+      : kind(other.kind),
+        ws(other.ws),
+        noexpand(other.noexpand),
+        pop(other.pop),
+        text(other.text) {}
 
-  token(token &&other) : kind(other.kind), ws(other.ws), noexpand(other.noexpand),
-                         pop (other.pop), text(std::move(other.text)) {}
+  token(token &&other)
+      : kind(other.kind),
+        ws(other.ws),
+        noexpand(other.noexpand),
+        pop(other.pop),
+        text(std::move(other.text)) {}
 
-  token &operator=(const token &other) {
+  token &
+  operator=(const token &other) {
     token tmp(other);
     std::swap(*this, tmp);
     return *this;
   }
 
-  token &operator=(token &&other) {
+  token &
+  operator=(token &&other) {
     kind = other.kind;
     ws = other.ws;
     noexpand = other.noexpand;
@@ -205,7 +213,6 @@ struct token {
 
 // Type for a list of tokens.
 typedef std::vector<token> token_list;
-
 
 // Scan a preprocessing token
 // preprocessing-token:
@@ -253,9 +260,16 @@ scan_pp_token(InputIterator str, InputIterator end, enum token::kind &kind, size
   // Punctuator or other non-whitespace character.
   switch (*str) {
   default:
-  case '[': case ']': case '(': case ')': case '{': case '}':
-  case '?': case ',': case ';':
-    assert(!std::isspace (*str, C_locale));
+  case '[':
+  case ']':
+  case '(':
+  case ')':
+  case '{':
+  case '}':
+  case '?':
+  case ',':
+  case ';':
+    assert(!std::isspace(*str, C_locale));
     ++str;
     break;
   case '-':
@@ -273,7 +287,12 @@ scan_pp_token(InputIterator str, InputIterator end, enum token::kind &kind, size
     if (str != end && (*str == '&' || *str == '='))
       ++str;
     break;
-  case '*': case '~': case '!': case '/': case '=': case '^':
+  case '*':
+  case '~':
+  case '!':
+  case '/':
+  case '=':
+  case '^':
     ++str;
     if (str != end && *str == '=')
       ++str;
@@ -347,13 +366,16 @@ scan_pp_token(InputIterator str, InputIterator end, enum token::kind &kind, size
 
 template<typename It>
 class tokenizer {
- public:
+public:
   tokenizer(It begin, It end, bool func_like, bool repl = true)
-      : token_(token::END, false), next_(begin), end_(end), func_like_(func_like),
+      : token_(token::END, false),
+        next_(begin),
+        end_(end),
+        func_like_(func_like),
         replacement_(repl) {}
 
   class iterator {
-   public:
+  public:
     explicit iterator() : owner_(nullptr) {}
     explicit iterator(tokenizer<It> *owner) : owner_(owner) {
       const auto &t = owner_->fetch();
@@ -361,13 +383,17 @@ class tokenizer {
         owner_ = nullptr;
     }
 
-    bool operator==(const iterator &other) const {
+    bool
+    operator==(const iterator &other) const {
       if (owner_ == nullptr && other.owner_ == nullptr)
         return true;
       return this == &other;
     }
 
-    bool operator!=(const iterator &other) const { return !(*this == other); }
+    bool
+    operator!=(const iterator &other) const {
+      return !(*this == other);
+    }
 
     token &operator*() { return owner_->token_; }
 
@@ -375,7 +401,7 @@ class tokenizer {
 
     token *operator->() { return &owner_->token_; }
 
-    const token *operator->() const { return &owner_->token_;  }
+    const token *operator->() const { return &owner_->token_; }
 
     iterator &operator++() {
       const auto &t = owner_->fetch();
@@ -384,19 +410,21 @@ class tokenizer {
       return *this;
     }
 
-   private:
+  private:
     tokenizer<It> *owner_;
   };
 
-  iterator begin() {
+  iterator
+  begin() {
     return iterator(this);
   }
 
-  iterator end() const {
+  iterator
+  end() const {
     return iterator();
   }
 
- private:
+private:
   const token &fetch();
   friend class iterator;
 
@@ -421,29 +449,32 @@ tokenizer<It>::fetch() {
   next_ = next;
   assert(kind != token::PLACEMARKER);
   switch (kind) {
-    case token::ID:
-    case token::OTHER:
-      return token_ = {kind, ws != 0, start + ws, next};
-    case token::STRINGIFY:
-      if (!replacement_ || !func_like_)
-        return token_ = {token::OTHER, ws != 0, start + ws, next};
-      else
-        return token_ = {kind, ws != 0};
-    case token::PASTE:
-      if (!replacement_)
-        return token_ = {token::OTHER, ws != 0, start + ws, next};
-      else
-        return token_ = {kind, ws != 0};
-    default:
-    case token::END:
-      return token_ = {token::END, false};
+  case token::ID:
+  case token::OTHER:
+    return token_ = {kind, ws != 0, start + ws, next};
+  case token::STRINGIFY:
+    if (!replacement_ || !func_like_)
+      return token_ = {token::OTHER, ws != 0, start + ws, next};
+    else
+      return token_ = {kind, ws != 0};
+  case token::PASTE:
+    if (!replacement_)
+      return token_ = {token::OTHER, ws != 0, start + ws, next};
+    else
+      return token_ = {kind, ws != 0};
+  default:
+  case token::END:
+    return token_ = {token::END, false};
   }
 }
 
 // Tokenize a character sequence
 template<typename InputIterator>
 token_list
-tokenize(InputIterator begin, InputIterator end, bool func_like, bool replacement = true) {
+tokenize(InputIterator begin,
+         InputIterator end,
+         bool func_like,
+         bool replacement = true) {
   token_list tokens;
   tokenizer<InputIterator> t(begin, end, func_like, replacement);
   const auto stop = t.end();
@@ -455,6 +486,6 @@ tokenize(InputIterator begin, InputIterator end, bool func_like, bool replacemen
   return tokens;
 }
 
-} // end namespace detail
-} // end namespace libmacro
-#endif // libmacro_tokenize_hh__
+}  // end namespace detail
+}  // end namespace libmacro
+#endif  // libmacro_tokenize_hh__

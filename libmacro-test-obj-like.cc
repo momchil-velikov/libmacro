@@ -4,7 +4,7 @@
 namespace {
 
 class empty_macros : public ::testing::Test {
- protected:
+protected:
   empty_macros() {
     macros.add_define(1, "A");
     macros.add_define(2, "B");
@@ -27,7 +27,7 @@ TEST_F(empty_macros, table_search) {
   ASSERT_EQ("", out);
 
   out = libmacro::macro_expand("B", &macros, 0);
-  ASSERT_EQ("",out);
+  ASSERT_EQ("", out);
   out = libmacro::macro_expand("B", &macros, 1);
   ASSERT_EQ("B", out);
   out = libmacro::macro_expand("B", &macros, 2);
@@ -74,7 +74,7 @@ TEST_F(empty_macros, table_search) {
 }
 
 class simple_macros : public ::testing::Test {
- protected:
+protected:
   simple_macros() {
     macros.add_define(1, "A a");
     macros.add_define(2, "B b");
@@ -97,7 +97,7 @@ TEST_F(simple_macros, simple_macro_expand) {
   ASSERT_EQ("a", out);
 
   out = libmacro::macro_expand("B", &macros, 0);
-  ASSERT_EQ("b",out);
+  ASSERT_EQ("b", out);
   out = libmacro::macro_expand("B", &macros, 1);
   ASSERT_EQ("B", out);
   out = libmacro::macro_expand("B", &macros, 2);
@@ -145,7 +145,7 @@ TEST_F(simple_macros, whitespace_preserve) {
 }
 
 class simple_chain_macros : public ::testing::Test {
- protected:
+protected:
   simple_chain_macros() {
     macros.add_define(1, "A a");
     macros.add_define(2, "B A");
@@ -168,7 +168,7 @@ TEST_F(simple_chain_macros, simple_macro_expand) {
   ASSERT_EQ("a", out);
 
   out = libmacro::macro_expand("B", &macros, 0);
-  ASSERT_EQ("a",out);
+  ASSERT_EQ("a", out);
   out = libmacro::macro_expand("B", &macros, 1);
   ASSERT_EQ("B", out);
   out = libmacro::macro_expand("B", &macros, 2);
@@ -215,8 +215,8 @@ TEST_F(simple_chain_macros, whitespace_preserve) {
   ASSERT_EQ("a a (c) c", out);
 }
 
-class simple_rec_macros  : public ::testing::Test {
- protected:
+class simple_rec_macros : public ::testing::Test {
+protected:
   simple_rec_macros() {
     macros.add_define(1, "A D");
     macros.add_define(2, "B E");
@@ -235,8 +235,8 @@ TEST_F(simple_rec_macros, simple_macro_expand) {
   ASSERT_EQ("D E F D E F", out);
 }
 
-class simple_rec_macros1  : public ::testing::Test {
- protected:
+class simple_rec_macros1 : public ::testing::Test {
+protected:
   simple_rec_macros1() {
     macros.add_define(1, "A {D}{E}");
     macros.add_define(2, "B {E}{F}");
@@ -252,7 +252,9 @@ class simple_rec_macros1  : public ::testing::Test {
 TEST_F(simple_rec_macros1, simple_macro_expand) {
   std::string out;
   out = libmacro::macro_expand("A B C D E F", &macros, 0);
-  ASSERT_EQ("{{{{D}{E}}.}{{D}{{F}.}}}{{{{E}{F}}{E}}.} {{{{E}{F}}{E}}.}{{{{F}.}{F}}{{F}.}} {{{{F}.}{F}}{{F}.}}{{{{E}{F}}{E}}.} {{{D}{E}}.}{{D}{{F}.}} {{{E}{F}}{E}}. {{{F}.}{F}}{{F}.}", out);
+  ASSERT_EQ(
+      "{{{{D}{E}}.}{{D}{{F}.}}}{{{{E}{F}}{E}}.} {{{{E}{F}}{E}}.}{{{{F}.}{F}}{{F}.}} {{{{F}.}{F}}{{F}.}}{{{{E}{F}}{E}}.} {{{D}{E}}.}{{D}{{F}.}} {{{E}{F}}{E}}. {{{F}.}{F}}{{F}.}",
+      out);
 }
 
-} // end namespace
+}  // end namespace

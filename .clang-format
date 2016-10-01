@@ -1,0 +1,19 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+AccessModifierOffset: -2
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterDefinitionReturnType: true
+BreakBeforeBinaryOperators: All
+BreakStringLiterals: false
+BinPackParameters: false
+BinPackArguments: false
+ColumnLimit: 90
+IndentCaseLabels: false
+IndentWidth:     2
+PenaltyBreakComment: 10000
+ReflowComments:  false
+SortIncludes: false
+SpaceAfterTemplateKeyword: false
+...

@@ -16,8 +16,10 @@ namespace {
 // containing one empty string. Macro with parameters (|#define foo bar|) is represented
 // with an empty vector.
 void
-parse_macro_def(const std::string &def, std::string &name,
-                std::vector<std::string> &params, std::string &repl) {
+parse_macro_def(const std::string &def,
+                std::string &name,
+                std::vector<std::string> &params,
+                std::string &repl) {
   // First space (if any) separates macro name and parameters from the expansion text.
   auto p = def.find(' ');
   if (p == std::string::npos) {
@@ -48,7 +50,7 @@ parse_macro_def(const std::string &def, std::string &name,
   }
 
   // Separate the macro name.
-  assert (def[p] == ' ' || def[p] == '(');
+  assert(def[p] == ' ' || def[p] == '(');
   name = def.substr(0, p);
 }
 
@@ -78,8 +80,7 @@ verify_replacement_tokens(const macro_table::define *def, const token_list &toke
       // shall be followed by a parameter as the next preprocessing token in the
       // replacement list (C11 6.10.3.2).
       auto next = i + 1;
-      if (next == tokens.cend()
-          || next->kind != token::ID
+      if (next == tokens.cend() || next->kind != token::ID
           || (next->text != "__VA_ARGS__"
               && (std::find(def->params.cbegin(), def->params.cend(), next->text)
                   == def->params.cend()))) {
@@ -101,8 +102,11 @@ tokenize(const macro_table::define *def) {
 }
 
 token_list::iterator
-gather_arguments(std::vector<std::string> &blacklist, token_list &tokens,
-                 token_list::iterator begin, bool variadic, size_t n,
+gather_arguments(std::vector<std::string> &blacklist,
+                 token_list &tokens,
+                 token_list::iterator begin,
+                 bool variadic,
+                 size_t n,
                  std::vector<token_list> &args) {
   assert(begin != tokens.end() && begin->text == "(");
   auto level = 0U;
@@ -206,18 +210,22 @@ find(const std::vector<std::string> &params, const std::string &name) {
 }
 
 // Perform parameter substitution (including inserting placemarkers) and stringification.
-void macro_expand(std::vector<std::string> &, const macro_table *, unsigned int,
+void macro_expand(std::vector<std::string> &,
+                  const macro_table *,
+                  unsigned int,
                   token_list &);
 void
 substitute_parameters(std::vector<std::string> &blacklist,
                       const std::vector<token_list> &args,
                       const std::vector<std::string> &params,
-                      const macro_table *macros, unsigned int lineno, token_list &repl) {
+                      const macro_table *macros,
+                      unsigned int lineno,
+                      token_list &repl) {
   bool ws;
   std::vector<std::string>::const_iterator p;
   token_list::iterator prev, next;
   auto curr = repl.begin();
-  while(curr != repl.end()) {
+  while (curr != repl.end()) {
     if (curr->kind == token::ID) {
       // Check if the identifier is a macro parameter.
       if ((p = find(params, curr->text)) != params.cend()) {
@@ -296,15 +304,14 @@ paste_tokens(token_list &repl) {
     if (curr->kind == token::PASTE) {
       // The ## operator is not the first or the last token.
       auto next = curr + 1;
-      while(next->kind == token::PASTE)
+      while (next->kind == token::PASTE)
         next = repl.erase(next);
       assert(prev != repl.end() && next != repl.end());
       if (prev->kind == token::PLACEMARKER && next->kind == token::PLACEMARKER) {
         // Two placemarker tokens are replaced with a single placemarker token.
         ++next;
         curr = repl.erase(curr, next);
-      }
-      else if (prev->kind == token::PLACEMARKER) {
+      } else if (prev->kind == token::PLACEMARKER) {
         prev = repl.erase(prev, next);
         curr = prev + 1;
       } else if (next->kind == token::PLACEMARKER) {
@@ -335,8 +342,10 @@ paste_tokens(token_list &repl) {
 }
 
 void
-macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
-             unsigned int lineno, token_list &tokens) {
+macro_expand(std::vector<std::string> &blacklist,
+             const macro_table *macros,
+             unsigned int lineno,
+             token_list &tokens) {
   token_list repl;
   const macro_table::define *def;
   token_list::iterator prev, curr, next;
@@ -359,7 +368,7 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
     }
 
     // If found an identifier, check the blacklist.
-    if (std::find(blacklist.cbegin(), blacklist.cend(), curr->text) !=  blacklist.cend()) {
+    if (std::find(blacklist.cbegin(), blacklist.cend(), curr->text) != blacklist.cend()) {
       // Do not replace this token anymore, even if it is re-examined in a context where
       // it is not blacklisted (C11, 16.3.4 #2).
       curr->noexpand = true;
@@ -398,15 +407,14 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
       // Function-like macro. If the next token is an opening parenthesis, expand the
       // macro, otherwise skip the name.
       next = curr + 1;
-      if (next != tokens.end()
-          && next->kind == token::OTHER && next->text == "(") {
+      if (next != tokens.end() && next->kind == token::OTHER && next->text == "(") {
         // Gather arguments.
         bool variadic = def->params.size() && def->params.back() == "...";
         std::vector<token_list> args;
-        next = gather_arguments(blacklist, tokens, next, variadic, def->params.size(),
-                                args);
+        next = gather_arguments(
+            blacklist, tokens, next, variadic, def->params.size(), args);
         // Check the number of actual arguments matches the number of macro parameters.
-        if (variadic)  {
+        if (variadic) {
           // A variadic macro should have an argument for every named parameter.
           if (args.size() < def->params.size() - 1)
             throw "Insufficient number of arguments";
@@ -431,11 +439,11 @@ macro_expand(std::vector<std::string> &blacklist, const macro_table *macros,
         // Paste tokens.
         paste_tokens(repl);
         // Remove placemarkers.
-        repl.erase(std::remove_if(repl.begin(), repl.end(),
-                                  [](const token &t) {
-                                    return t.kind == token::PLACEMARKER;
-                                  }),
-                   repl.end());
+        repl.erase(
+            std::remove_if(repl.begin(),
+                           repl.end(),
+                           [](const token &t) { return t.kind == token::PLACEMARKER; }),
+            repl.end());
         // Rescan/repeat expand.
         if (repl.empty()) {
           if (next != tokens.end())
@@ -466,16 +474,14 @@ public:
     location_ = val;
   }
 
-  ~safe_save_restore() {
-    location_ = saved_value_;
-  }
+  ~safe_save_restore() { location_ = saved_value_; }
 
 protected:
   T saved_value_;
   T &location_;
 };
 
-} // end namespace
+}  // end namespace
 
 macro_table::~macro_table() {
   for (auto &e : table_)
@@ -532,7 +538,7 @@ macro_table::entry::entry() : kind(INVALID), lineno(0), def(nullptr) {}
 
 void
 macro_table::entry::destroy() {
-  switch(kind) {
+  switch (kind) {
   case DEFINE:
     delete def;
     break;
@@ -575,8 +581,8 @@ macro_table::find_define(unsigned int lineno, const std::string &name) const {
 
   // Examine the macro entries from the next smaller index downwards.
   assert(idx == table_.size() || table_[idx].lineno >= lineno);
-  while(idx-- > 0) {
-    switch(table_[idx].kind) {
+  while (idx-- > 0) {
+    switch (table_[idx].kind) {
     case entry::DEFINE:
       // Found a macro definition for the name
       if (table_[idx].def->name == name)
@@ -621,4 +627,4 @@ macro_expand(const std::string &in, const macro_table *macros, unsigned int line
   return out;
 }
 
-} // end namespace
+}  // end namespace
